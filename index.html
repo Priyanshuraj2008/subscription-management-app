@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SubTrack - Advanced</title>
+    <meta name="description" content="Manage and track your recurring subscriptions easily.">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="index.css">
+    
+    <!-- Chart.js and Lucide via CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Google Identity Services for One Tap -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header class="app-header">
+            <div>
+                <h1 class="logo">Sub<span>Track</span></h1>
+            </div>
+            <div style="display:flex; gap:8px; align-items: center;">
+                <!-- Google Login Button Container (Fallback) -->
+                <div id="google-login-btn" style="display:none; margin-right:8px;"></div>
+                
+                <!-- Logged In User Profile -->
+                <div id="user-profile" style="display:none; align-items:center; gap:8px; margin-right:8px; background: rgba(255,255,255,0.05); padding: 4px 12px 4px 4px; border-radius: 30px; border: 1px solid rgba(255,255,255,0.1);">
+                    <img id="user-avatar" src="" alt="Profile" style="width:28px; height:28px; border-radius:50%; object-fit:cover; border:2px solid var(--neon-cyan);">
+                    <div style="display:flex; flex-direction:column; justify-content:center;">
+                        <span id="user-name" style="font-size:13px; font-weight:600; line-height:1.2; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:80px;">User</span>
+                        <button id="logout-btn" style="background:none; border:none; color:var(--neon-magenta); font-size:10px; text-align:left; cursor:pointer; padding:0; line-height:1.2; width: fit-content; text-transform:uppercase; font-weight:bold;">Sign out</button>
+                    </div>
+                </div>
+
+                <button id="settings-btn" class="icon-toggle">
+                    <i data-lucide="settings"></i>
+                </button>
+                <button id="add-btn" class="icon-toggle">
+                    <i data-lucide="plus"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+        <main id="main-content">
+            <!-- Dashboard View -->
+            <section id="view-dashboard" class="view active">
+                <div class="summary-grid">
+                    <div class="card neon-border cyan">
+                        <div class="card-title">Monthly Spend</div>
+                        <div class="card-value" id="dash-monthly-spend">$0.00</div>
+                    </div>
+                    <div class="card neon-border magenta">
+                        <div class="card-title">Active Subs</div>
+                        <div class="card-value" id="dash-active-count">0</div>
+                    </div>
+                    <div class="card neon-border purple">
+                        <div class="card-title">Upcoming (7d)</div>
+                        <div class="card-value" id="dash-upcoming-count">0</div>
+                    </div>
+                    <div class="card neon-border green">
+                        <div class="card-title">Most Expensive</div>
+                        <div class="card-value text-small" id="dash-most-expensive">-</div>
+                    </div>
+                </div>
+
+                <div class="section-container mt-lg">
+                    <h2>Upcoming Renewals (Next 7 Days)</h2>
+                    <div class="subscription-list" id="dash-upcoming-list"></div>
+                </div>
+            </section>
+
+            <!-- Subscriptions List View -->
+            <section id="view-subscriptions" class="view">
+                <div class="section-header column-header">
+                    <h2>All Subscriptions</h2>
+                    <div class="controls-row">
+                        <input type="text" id="filter-text" placeholder="Search..." class="search-input">
+                        <select id="sort-select" class="sort-select">
+                            <option value="name">Name (A-Z)</option>
+                            <option value="cost-desc">Cost (High-Low)</option>
+                            <option value="cost-asc">Cost (Low-High)</option>
+                            <option value="date">Renewal Date</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="subscription-list full-list" id="all-subs-list"></div>
+            </section>
+
+            <!-- Renewal Calendar View -->
+            <section id="view-calendar" class="view">
+                <h2>Renewal Calendar</h2>
+                <div class="calendar-container">
+                    <div class="calendar-header">
+                        <button id="prev-month" class="icon-btn"><i data-lucide="chevron-left"></i></button>
+                        <h3 id="cal-month-year">Month Year</h3>
+                        <button id="next-month" class="icon-btn"><i data-lucide="chevron-right"></i></button>
+                    </div>
+                    <div class="calendar-grid-header">
+                        <span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span>
+                    </div>
+                    <div class="calendar-grid" id="calendar-days"></div>
+                </div>
+                <div class="mt-lg">
+                    <h3>Renewals on <span id="selected-date-label">Selected Date</span></h3>
+                    <div class="subscription-list mt-md" id="calendar-subs-list"></div>
+                </div>
+            </section>
+
+            <!-- Spending Report View -->
+            <section id="view-reports" class="view">
+                <h2>Spending Insights</h2>
+                
+                <div class="card neon-border magenta mb-md">
+                    <div class="card-title">Yearly Projected Spend</div>
+                    <div class="card-value" id="reports-yearly-proj" style="font-size: 28px;">$0.00</div>
+                </div>
+
+                <div class="section-container mt-md">
+                    <h2>Category Breakdown</h2>
+                    <div class="chart-container" style="height: 220px;">
+                        <canvas id="category-pie-chart"></canvas>
+                    </div>
+                </div>
+
+                <div class="section-container mt-lg">
+                    <h2>Top 5 Most Expensive</h2>
+                    <div class="subscription-list" id="reports-top-5"></div>
+                </div>
+
+                <div class="section-container mt-lg">
+                    <h2>Spending Trend</h2>
+                    <div class="chart-container" style="height: 200px;">
+                        <canvas id="monthly-bar-chart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Cancel Reminders View -->
+            <section id="view-reminders" class="view">
+                <h2>Cancel Reminders</h2>
+                
+                <div class="section-container mt-md">
+                    <h3 style="font-size:15px; color:var(--neon-orange); margin-bottom:8px; display:none;" id="ghost-list-header">⚠️ Ghost Subscriptions (6+ mo, no notes)</h3>
+                    <div class="subscription-list mb-lg" id="ghost-list"></div>
+                </div>
+
+                <div class="section-container">
+                    <h3 style="font-size:15px; margin-bottom:8px;">Renewing in next 3 days</h3>
+                    <div class="subscription-list" id="reminders-list"></div>
+                </div>
+            </section>
+
+            <!-- Settings View -->
+            <section id="view-settings" class="view">
+                <h2>Settings</h2>
+
+                <!-- SECTION 1 — My Profile -->
+                <div class="section-container mt-md">
+                    <h3>My Profile</h3>
+                    <div class="card neon-border cyan profile-settings-card">
+                        <div style="display:flex; align-items:center; gap: 16px; margin-bottom: 20px;">
+                            <div class="profile-photo-wrapper" style="position:relative; width:64px; height:64px; flex-shrink:0;">
+                                <img id="settings-avatar" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NCIgaGVpZ2h0PSI2NCI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iIzMzMyIvPjwvc3ZnPg==" style="width:100%; height:100%; border-radius:50%; object-fit:cover; border: 2px solid var(--neon-cyan);">
+                                <button id="edit-photo-btn" class="icon-toggle" style="position:absolute; bottom:-4px; right:-4px; background:var(--bg-lighter); padding:4px; border-radius:50%; border:1px solid var(--neon-cyan); cursor:pointer;">
+                                    <i data-lucide="camera" style="width:12px; height:12px;"></i>
+                                </button>
+                                <input type="file" id="photo-upload-input" accept="image/*" style="display:none;">
+                            </div>
+                            <div style="flex:1;">
+                                <div id="settings-name-display" style="font-size:18px; font-weight:600; color:#fff;">Guest User</div>
+                                <input type="text" id="settings-name-input" class="search-input" style="display:none; width:100%; margin-top:4px;" placeholder="Full Name">
+                                <div id="settings-email" style="font-size:12px; color:#9ca3af; margin-top:4px;">Not signed in</div>
+                                <div style="margin-top:6px;">
+                                    <span id="settings-login-badge" class="badge" style="font-size:10px; background:rgba(0, 255, 255, 0.1); color:var(--neon-cyan);">
+                                        <i data-lucide="mail" style="width:10px; height:10px; margin-right:4px;"></i> Email Account
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="controls-row" style="margin-top: 16px;">
+                            <button id="edit-profile-btn" class="btn btn-primary" style="flex:1;">Edit Profile</button>
+                            <button id="save-profile-btn" class="btn btn-primary" style="display:none; flex:1; background:var(--neon-green); color:#000;">Save Changes</button>
+                        </div>
+                        <div id="change-password-wrapper" style="margin-top: 12px; text-align:center;">
+                            <button id="change-password-btn" style="background:none; border:none; color:var(--neon-cyan); text-decoration:underline; font-size:12px; cursor:pointer;">Change Password</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- App Preferences -->
+                <div class="section-container mt-lg">
+                    <h3>App Preferences</h3>
+                    <div class="card p-md">
+                        <div class="form-group mb-0">
+                            <label for="settings-currency">Currency</label>
+                            <select id="settings-currency">
+                                <option value="USD">USD ($)</option>
+                                <option value="EUR">EUR (€)</option>
+                                <option value="GBP">GBP (£)</option>
+                                <option value="JPY">JPY (¥)</option>
+                                <option value="INR">INR (₹)</option>
+                                <option value="CAD">CAD ($)</option>
+                                <option value="AUD">AUD ($)</option>
+                                <option value="BRL">BRL (R$)</option>
+                                <option value="CNY">CNY (¥)</option>
+                                <option value="RUB">RUB (₽)</option>
+                                <option value="ZAR">ZAR (R)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SECTION 5 — Privacy & Security -->
+                <div class="section-container mt-lg mb-lg">
+                    <h3>Privacy & Security</h3>
+                    <div class="card p-md neon-border purple">
+                        <div class="form-row align-center mb-md" style="justify-content:space-between;">
+                            <div>
+                                <div style="font-weight:500;">App Lock</div>
+                                <div style="font-size:12px; color:#9ca3af;">Require PIN or Biometric</div>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="settings-app-lock">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        
+                        <div id="app-lock-options" style="display:none; padding-left:12px; border-left:2px solid var(--neon-purple); margin-bottom:16px;">
+                            <div class="form-group mb-sm">
+                                <label for="settings-lock-type">Lock Type</label>
+                                <select id="settings-lock-type">
+                                    <option value="PIN">PIN</option>
+                                    <option value="Fingerprint">Fingerprint</option>
+                                    <option value="FaceID">Face ID</option>
+                                </select>
+                            </div>
+                            <button id="change-pin-btn" style="background:none; border:1px solid rgba(255,255,255,0.2); color:#fff; padding:6px 12px; border-radius:4px; font-size:12px; cursor:pointer; width:100%;">Change PIN</button>
+                        </div>
+
+                        <div class="form-row align-center mb-md mt-md" style="justify-content:space-between; border-top:1px solid rgba(255,255,255,0.1); padding-top:16px;">
+                            <div>
+                                <div style="font-weight:500;">Two-Factor Auth (2FA)</div>
+                                <div style="font-size:12px; color:#9ca3af;">Extra security layer</div>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="settings-2fa">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+
+                        <div class="form-group mb-md" style="border-top:1px solid rgba(255,255,255,0.1); padding-top:16px;">
+                            <label for="settings-auto-logout">Auto Logout After</label>
+                            <select id="settings-auto-logout">
+                                <option value="5">5 mins</option>
+                                <option value="15">15 mins</option>
+                                <option value="30">30 mins</option>
+                                <option value="never" selected>Never</option>
+                            </select>
+                        </div>
+
+                        <div class="mt-md" style="border-top:1px solid rgba(255,255,255,0.1); padding-top:16px;">
+                            <div style="font-weight:500; margin-bottom:12px;">Login Activity (Last 3)</div>
+                            <div id="login-activity-list" style="display:flex; flex-direction:column; gap:8px;">
+                                <!-- Injected dynamically -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer Credits -->
+                <div style="text-align:center; padding: 40px 0 20px; margin-top:10px;">
+                    <span style="font-size:12px; font-weight: 500; color:var(--text-muted); letter-spacing: 0.5px; opacity: 0.6; text-transform: uppercase;">
+                        Designed by Priyanshu Raj
+                    </span>
+                </div>
+            </section>
+        </main>
+
+        <!-- Bottom Navigation -->
+        <nav class="bottom-nav">
+            <button class="nav-item active" data-target="view-dashboard">
+                <i data-lucide="layout-dashboard"></i><span>Home</span>
+            </button>
+            <button class="nav-item" data-target="view-subscriptions">
+                <i data-lucide="list"></i><span>Subs</span>
+            </button>
+            <button class="nav-item" data-target="view-calendar">
+                <i data-lucide="calendar"></i><span>Cal</span>
+            </button>
+            <button class="nav-item" data-target="view-reports">
+                <i data-lucide="bar-chart-2"></i><span>Reports</span>
+            </button>
+            <button class="nav-item" data-target="view-reminders">
+                <i data-lucide="bell"></i><span>Alerts</span>
+            </button>
+        </nav>
+
+        <!-- Modals -->
+        <div id="modal-backdrop" class="modal-backdrop"></div>
+        <div id="subscription-modal" class="modal modal-tall">
+            <div class="modal-header">
+                <h3 id="modal-title">Add Subscription</h3>
+                <button id="close-modal" class="icon-toggle"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                <form id="sub-form">
+                    <input type="hidden" id="sub-id">
+                    
+                    <div class="form-group">
+                        <label for="sub-name">Service Name</label>
+                        <input type="text" id="sub-name" list="service-suggestions" placeholder="e.g. Netflix" required>
+                        <datalist id="service-suggestions">
+                            <option value="Netflix"></option>
+                            <option value="Spotify"></option>
+                            <option value="Amazon Prime"></option>
+                            <option value="Disney+"></option>
+                            <option value="YouTube Premium"></option>
+                            <option value="Apple Music"></option>
+                            <option value="Gym"></option>
+                            <option value="Microsoft 365"></option>
+                            <option value="Adobe CC"></option>
+                            <option value="Canva Pro"></option>
+                            <option value="Google One"></option>
+                            <option value="iCloud+"></option>
+                            <option value="NordVPN"></option>
+                            <option value="Xbox Game Pass"></option>
+                            <option value="Headspace"></option>
+                            <option value="Calm"></option>
+                            <option value="Notion"></option>
+                            <option value="Grammarly"></option>
+                            <option value="Zoom"></option>
+                            <option value="Slack"></option>
+                            <option value="Audible"></option>
+                            <option value="Kindle Unlimited"></option>
+                        </datalist>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="sub-logo">Logo URL (Optional)</label>
+                        <input type="url" id="sub-logo" placeholder="https://...">
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group half">
+                            <label for="sub-category">Category</label>
+                            <select id="sub-category">
+                                <option value="Streaming">Streaming</option>
+                                <option value="Music">Music</option>
+                                <option value="Fitness">Fitness</option>
+                                <option value="Software">Software</option>
+                                <option value="Gaming">Gaming</option>
+                                <option value="News">News</option>
+                                <option value="Security">Security</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div class="form-group half">
+                            <label for="sub-status">Status</label>
+                            <select id="sub-status">
+                                <option value="Active">Active</option>
+                                <option value="Paused">Paused</option>
+                                <option value="Cancelled">Cancelled</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group half">
+                            <label for="sub-price">Monthly Cost</label>
+                            <input type="number" id="sub-price" step="0.01" min="0" placeholder="0.00" required>
+                        </div>
+                        <div class="form-group half">
+                            <label for="sub-cycle">Billing Cycle</label>
+                            <select id="sub-cycle">
+                                <option value="Weekly">Weekly</option>
+                                <option value="Monthly" selected>Monthly</option>
+                                <option value="Yearly">Yearly</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group half">
+                            <label for="sub-start">Start Date</label>
+                            <input type="date" id="sub-start" required>
+                        </div>
+                        <div class="form-group half">
+                            <label for="sub-next">Next Renewal</label>
+                            <input type="date" id="sub-next" required>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="sub-notes">Notes</label>
+                        <textarea id="sub-notes" rows="2" placeholder="Account email, shared with..."></textarea>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-block glow">Save Subscription</button>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Settings Modal removed in favor of full screen view -->
+
+        <!-- Toast Notification -->
+        <div id="toast-container"></div>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>
